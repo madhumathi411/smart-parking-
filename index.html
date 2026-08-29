@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Parking — Control Deck</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --asphalt:#1b1d1e;
+  --asphalt-2:#232627;
+  --panel:#2a2d2e;
+  --line:#3a3e40;
+  --lane-yellow:#f2c14e;
+  --free:#3fcf8e;
+  --occupied:#e2574c;
+  --queued:#7aa2f7;
+  --zoneA:#f2c14e;
+  --zoneB:#7aa2f7;
+  --zoneC:#c792ea;
+  --zoneD:#3fcf8e;
+  --text:#ececeb;
+  --text-dim:#9a9d9e;
+  --text-dimmer:#6b6e70;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--asphalt);
+  color:var(--text);
+  font-family:'IBM Plex Sans',sans-serif;
+  min-height:100vh;
+}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 20px 60px;}
+
+/* ---------- header ---------- */
+header{
+  display:flex;justify-content:space-between;align-items:flex-end;
+  border-bottom:2px dashed var(--line);
+  padding-bottom:16px;margin-bottom:20px;
+  flex-wrap:wrap;gap:12px;
+}
+.brand{display:flex;align-items:center;gap:14px;}
+.brand-mark{
+  width:44px;height:44px;border-radius:6px;
+  background:repeating-linear-gradient(135deg,var(--lane-yellow) 0 8px, #1b1d1e 8px 16px);
+  border:2px solid var(--lane-yellow);
+  flex-shrink:0;
+}
+h1{
+  font-family:'Oswald',sans-serif;font-weight:700;
+  font-size:26px;letter-spacing:0.5px;margin:0;text-transform:uppercase;
+}
+.subtitle{font-size:12px;color:var(--text-dim);margin-top:2px;letter-spacing:1px;text-transform:uppercase;}
+.counters{display:flex;gap:18px;font-family:'IBM Plex Mono',monospace;}
+.counter{text-align:right;}
+.counter .num{font-size:24px;font-weight:600;line-height:1;}
+.counter .lbl{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
+.counter.free .num{color:var(--free);}
+.counter.occ .num{color:var(--occupied);}
+.counter.q .num{color:var(--queued);}
+
+/* ---------- layout ---------- */
+.grid{display:grid;grid-template-columns:300px 1fr;gap:20px;}
+@media(max-width:860px){.grid{grid-template-columns:1fr;}}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:16px;
+}
+.panel h2{
+  font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--text-dim);margin:0 0 12px;
+  display:flex;align-items:center;gap:8px;
+}
+.panel h2::before{content:"";width:8px;height:8px;background:var(--lane-yellow);display:inline-block;}
+
+/* tabs */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.tab{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;
+  background:var(--asphalt-2);border:1px solid var(--line);color:var(--text-dim);
+  padding:6px 10px;border-radius:4px;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;
+}
+.tab.active{background:var(--lane-yellow);color:#1b1d1e;border-color:var(--lane-yellow);font-weight:600;}
+
+.field{margin-bottom:10px;}
+.field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;}
+.field input,.field select{
+  width:100%;padding:8px 9px;background:var(--asphalt-2);border:1px solid var(--line);
+  color:var(--text);border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:13px;
+}
+.field input:focus,.field select:focus{outline:1px solid var(--lane-yellow);}
+.btn{
+  width:100%;padding:10px;border:none;border-radius:4px;
+  font-family:'Oswald',sans-serif;font-weight:600;font-size:13px;letter-spacing:1px;
+  text-transform:uppercase;cursor:pointer;margin-top:4px;
+}
+.btn-primary{background:var(--lane-yellow);color:#1b1d1e;}
+.btn-primary:hover{filter:brightness(1.08);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.hint{font-size:11px;color:var(--text-dimmer);margin-top:8px;line-height:1.5;}
+
+.result-line{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;
+  padding:10px;border-radius:4px;margin-top:10px;line-height:1.6;
+  border-left:3px solid var(--line);background:var(--asphalt-2);
+  white-space:pre-wrap;
+}
+.result-line.ok{border-left-color:var(--free);}
+.result-line.warn{border-left-color:var(--queued);}
+.result-line.err{border-left-color:var(--occupied);}
+
+/* list rows for search/history/report/queue */
+.rowlist{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;}
+.row{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;
+  display:flex;justify-content:space-between;gap:8px;
+  padding:8px 10px;background:var(--asphalt-2);border-radius:4px;border:1px solid var(--line);
+}
+.row .tag{padding:1px 6px;border-radius:3px;font-size:10px;text-transform:uppercase;}
+.tag.in{background:rgba(63,207,142,0.18);color:var(--free);}
+.tag.out{background:rgba(226,87,76,0.18);color:var(--occupied);}
+.empty-note{color:var(--text-dimmer);font-size:12px;font-style:italic;padding:8px 0;}
+
+/* ---------- lot map ---------- */
+.lotmap{position:relative;}
+.gate-row{
+  display:flex;justify-content:center;margin-bottom:10px;
+}
+.gate{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;
+  color:#1b1d1e;background:var(--lane-yellow);padding:5px 18px;border-radius:0 0 8px 8px;
+  text-transform:uppercase;
+}
+.zones{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:600px){.zones{grid-template-columns:1fr;}}
+.zone{
+  border:1px dashed var(--line);border-radius:6px;padding:12px;position:relative;
+}
+.zone-title{
+  font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
+  display:flex;align-items:center;gap:6px;margin-bottom:10px;color:var(--text-dim);
+}
+.zone-dot{width:9px;height:9px;border-radius:50%;}
+.slots{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;}
+.slot{
+  aspect-ratio:2/3;border-radius:4px;position:relative;
+  background:var(--asphalt-2);border:2px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:'IBM Plex Mono',monospace;transition:all .35s ease;
+}
+.slot.free{border-color:var(--free);}
+.slot .sid{font-size:10px;color:var(--text-dimmer);}
+.slot .veh{font-size:9px;color:var(--text);font-weight:600;margin-top:2px;text-align:center;word-break:break-all;padding:0 2px;}
+.slot.occupied{background:rgba(226,87,76,0.13);border-color:var(--occupied);}
+.slot.occupied .sid{color:var(--occupied);}
+.slot.flash{animation:flash 1s ease;}
+@keyframes flash{
+  0%{box-shadow:0 0 0 0 rgba(242,193,78,0.9);}
+  100%{box-shadow:0 0 0 14px rgba(242,193,78,0);}
+}
+
+/* path trace svg overlay */
+#traceSvg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
+.trace-path{
+  stroke:var(--lane-yellow);stroke-width:2;fill:none;stroke-dasharray:6 5;
+  stroke-linecap:round;opacity:0;
+}
+.trace-path.show{opacity:1;animation:dash 0.9s linear;}
+@keyframes dash{from{stroke-dashoffset:60;}to{stroke-dashoffset:0;}}
+
+/* console log */
+.console{
+  margin-top:16px;background:#101213;border:1px solid var(--line);border-radius:8px;
+  padding:12px 14px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.7;
+  max-height:170px;overflow-y:auto;color:#8fe3b0;
+}
+.console .ln{white-space:pre-wrap;}
+.console .ln .ts{color:var(--text-dimmer);}
+.console::-webkit-scrollbar,.rowlist::-webkit-scrollbar{width:6px;}
+.console::-webkit-scrollbar-thumb,.rowlist::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+
+footer{margin-top:22px;text-align:center;font-size:11px;color:var(--text-dimmer);letter-spacing:0.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <h1>Smart Parking — Control Deck</h1>
+        <div class="subtitle">Graph allocation · Hash search · Stack history · Queue overflow</div>
+      </div>
+    </div>
+    <div class="counters">
+      <div class="counter free"><div class="num" id="cFree">20</div><div class="lbl">Free</div></div>
+      <div class="counter occ"><div class="num" id="cOcc">0</div><div class="lbl">Occupied</div></div>
+      <div class="counter q"><div class="num" id="cQueue">0</div><div class="lbl">Queued</div></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT CONTROL PANEL -->
+    <div>
+      <div class="panel">
+        <h2>Operations</h2>
+        <div class="tabs" id="tabs">
+          <div class="tab active" data-tab="entry">Entry</div>
+          <div class="tab" data-tab="exit">Exit</div>
+          <div class="tab" data-tab="search">Search</div>
+          <div class="tab" data-tab="queue">Queue</div>
+          <div class="tab" data-tab="history">History</div>
+          <div class="tab" data-tab="report">Report</div>
+        </div>
+
+        <div id="tab-entry" class="tabpane">
+          <div class="field">
+            <label>Vehicle Number</label>
+            <input id="entryVeh" placeholder="e.g. TN09 AB 1234">
+          </div>
+          <button class="btn btn-primary" onclick="doEntry()">Allocate Nearest Slot</button>
+          <div class="hint">Runs Dijkstra's shortest path over Gate → Zone → Slot to find the nearest free slot. Lot full → vehicle joins the FIFO queue automatically.</div>
+          <div id="entryResult"></div>
+        </div>
+
+        <div id="tab-exit" class="tabpane" style="display:none;">
+          <div class="field">
+            <label>Select Parked Vehicle</label>
+            <select id="exitVeh"></select>
+          </div>
+          <button class="btn btn-primary" onclick="doExit()">Exit &amp; Free Slot</button>
+          <div class="hint">Freeing a slot auto-allocates it to the next vehicle waiting in queue, if any.</div>
+          <div id="exitResult"></div>
+        </div>
+
+        <div id="tab-search" class="tabpane" style="display:none;">
+          <div class="field">
+            <label>Vehicle Number</label>
+            <input id="searchVeh" placeholder="e.g. TN09 AB 1234">
+          </div>
+          <button class="btn btn-primary" onclick="doSearch()">Hash Lookup</button>
+          <div class="hint">O(1) average-case lookup via separate-chaining hash table, not a linear scan.</div>
+          <div id="searchResult"></div>
+        </div>
+
+        <div id="tab-queue" class="tabpane" style="display:none;">
+          <div class="rowlist" id="queueList"></div>
+        </div>
+
+        <div id="tab-history" class="tabpane" style="display:none;">
+          <div class="hint" style="margin-top:0;">Stack (LIFO) — most recent action first.</div>
+          <div class="rowlist" id="historyList"></div>
+        </div>
+
+        <div id="tab-report" class="tabpane" style="display:none;">
+          <div class="hint" style="margin-top:0;">Currently parked vehicles, sorted by slot number.</div>
+          <div class="rowlist" id="reportList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: LOT MAP -->
+    <div class="panel lotmap">
+      <h2>Lot Map — 4 Zones · 20 Slots</h2>
+      <div class="gate-row"><div class="gate">▼ Gate</div></div>
+      <div class="zones" id="zones"></div>
+      <svg id="traceSvg"></svg>
+
+      <div class="console" id="console"></div>
+    </div>
+  </div>
+
+  <footer>In-memory prototype for demo/presentation purposes — mirrors the C console program's data structures and logic.</footer>
+</div>
+
+<script>
+/* ================= DATA MODEL ================= */
+const ZONES = [
+  {id:'A', color:'var(--zoneA)', dist:1},
+  {id:'B', color:'var(--zoneB)', dist:2},
+  {id:'C', color:'var(--zoneC)', dist:3},
+  {id:'D', color:'var(--zoneD)', dist:4},
+];
+const SLOTS_PER_ZONE = 5;
+
+// Build slot list: id like A1..A5, B1..B5 ... with a graph weight (gate->zone->slot)
+let slots = [];
+ZONES.forEach(z=>{
+  for(let i=1;i<=SLOTS_PER_ZONE;i++){
+    slots.push({
+      id: z.id+i,
+      zone: z.id,
+      weight: z.dist + i*0.1,   // gate->zone edge + zone->slot edge, simulates Dijkstra cost
+      occupied:false,
+      vehicle:null
+    });
+  }
+});
+
+let hashTable = {};      // vehicle -> slotId   (separate-chaining simulated by plain object)
+let historyStack = [];   // {action, vehicle, slot, time}
+let waitQueue = [];      // FIFO circular queue simulated with array
+
+/* ================= HELPERS ================= */
+function ts(){
+  const d = new Date();
+  return d.toLocaleTimeString('en-GB',{hour12:false});
+}
+function log(msg){
+  const c = document.getElementById('console');
+  const div = document.createElement('div');
+  div.className='ln';
+  div.innerHTML = `<span class="ts">[${ts()}]</span> ${msg}`;
+  c.appendChild(div);
+  c.scrollTop = c.scrollHeight;
+}
+function pushHistory(action, vehicle, slotId){
+  historyStack.unshift({action, vehicle, slot:slotId, time:ts()});
+}
+
+/* Dijkstra-style nearest free slot: pick free slot with minimum weight */
+function findNearestFreeSlot(){
+  let best=null;
+  for(const s of slots){
+    if(!s.occupied){
+      if(best===null || s.weight < best.weight) best = s;
+    }
+  }
+  return best;
+}
+
+/* ================= RENDER: LOT MAP ================= */
+function renderZones(){
+  const container = document.getElementById('zones');
+  container.innerHTML = '';
+  ZONES.forEach(z=>{
+    const zoneDiv = document.createElement('div');
+    zoneDiv.className='zone';
+    zoneDiv.innerHTML = `<div class="zone-title"><span class="zone-dot" style="background:${z.color}"></span>Zone ${z.id}</div>`;
+    const slotsDiv = document.createElement('div');
+    slotsDiv.className='slots';
+    slots.filter(s=>s.zone===z.id).forEach(s=>{
+      const sd = document.createElement('div');
+      sd.className = 'slot ' + (s.occupied?'occupied':'free');
+      sd.id = 'slot-'+s.id;
+      sd.innerHTML = `<div class="sid">${s.id}</div>${s.occupied?`<div class="veh">${s.vehicle}</div>`:''}`;
+      slotsDiv.appendChild(sd);
+    });
+    zoneDiv.appendChild(slotsDiv);
+    container.appendChild(zoneDiv);
+  });
+}
+
+function flashSlot(slotId){
+  const el = document.getElementById('slot-'+slotId);
+  if(!el) return;
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+
+function updateCounters(){
+  const occ = slots.filter(s=>s.occupied).length;
+  document.getElementById('cFree').textContent = slots.length - occ;
+  document.getElementById('cOcc').textContent = occ;
+  document.getElementById('cQueue').textContent = waitQueue.length;
+}
+
+/* ================= CORE OPS ================= */
+function allocateSlot(vehicle, slot){
+  slot.occupied = true;
+  slot.vehicle = vehicle;
+  hashTable[vehicle] = slot.id;
+  pushHistory('ENTRY', vehicle, slot.id);
+  log(`ENTRY  ${vehicle}  → allocated slot <b style="color:var(--lane-yellow)">${slot.id}</b> (zone ${slot.zone}, nearest free via graph search)`);
+}
+
+function doEntry(){
+  const input = document.getElementById('entryVeh');
+  const vehicle = input.value.trim().toUpperCase();
+  const box = document.getElementById('entryResult');
+  if(!vehicle){ box.innerHTML = `<div class="result-line err">Enter a vehicle number.</div>`; return; }
+  if(hashTable[vehicle]){ box.innerHTML = `<div class="result-line err">${vehicle} is already parked at slot ${hashTable[vehicle]}.</div>`; return; }
+
+  const slot = findNearestFreeSlot();
+  if(!slot){
+    waitQueue.push(vehicle);
+    pushHistory('QUEUED', vehicle, '-');
+    log(`QUEUE  ${vehicle}  → lot full, added to waiting queue (position ${waitQueue.length})`);
+    box.innerHTML = `<div class="result-line warn">Lot is full. ${vehicle} added to the waiting queue at position ${waitQueue.length}.</div>`;
+  } else {
+    allocateSlot(vehicle, slot);
+    box.innerHTML = `<div class="result-line ok">${vehicle} allocated to slot ${slot.id} (Zone ${slot.zone}).</div>`;
+    flashSlot(slot.id);
+  }
+  input.value='';
+  renderZones();
+  updateCounters();
+  refreshAllLists();
+}
+
+function doExit(){
+  const sel = document.getElementById('exitVeh');
+  const vehicle = sel.value;
+  const box = document.getElementById('exitResult');
+  if(!vehicle){ box.innerHTML = `<div class="result-line err">No parked vehicle selected.</div>`; return; }
+  const slotId = hashTable[vehicle];
+  const slot = slots.find(s=>s.id===slotId);
+  slot.occupied=false; slot.vehicle=null;
+  delete hashTable[vehicle];
+  pushHistory('EXIT', vehicle, slotId);
+  log(`EXIT   ${vehicle}  → freed slot <b style="color:var(--occupied)">${slotId}</b>`);
+  flashSlot(slotId);
+
+  let msg = `${vehicle} exited. Slot ${slotId} is now free.`;
+  if(waitQueue.length>0){
+    const next = waitQueue.shift();
+    slot.occupied=true; slot.vehicle=next;
+    hashTable[next]=slot.id;
+    pushHistory('ENTRY', next, slot.id);
+    log(`AUTO   ${next}  → dequeued and allocated freed slot <b style="color:var(--lane-yellow)">${slot.id}</b>`);
+    msg += ` Queued vehicle ${next} was auto-allocated to it.`;
+    setTimeout(()=>flashSlot(slot.id), 450);
+  }
+  box.innerHTML = `<div class="result-line ok">${msg}</div>`;
+  renderZones();
+  updateCounters();
+  refreshAllLists();
+}
+
+function doSearch(){
+  const vehicle = document.getElementById('searchVeh').value.trim().toUpperCase();
+  const box = document.getElementById('searchResult');
+  if(!vehicle){ box.innerHTML = `<div class="result-line err">Enter a vehicle number.</div>`; return; }
+  const slotId = hashTable[vehicle];
+  if(slotId){
+    box.innerHTML = `<div class="result-line ok">Hash hit → ${vehicle} is at slot ${slotId}.</div>`;
+    flashSlot(slotId);
+  } else {
+    box.innerHTML = `<div class="result-line err">Hash miss → ${vehicle} is not currently parked.</div>`;
+  }
+}
+
+/* ================= LIST RENDERERS ================= */
+function refreshExitOptions(){
+  const sel = document.getElementById('exitVeh');
+  const current = Object.keys(hashTable);
+  sel.innerHTML = current.length
+    ? current.map(v=>`<option value="${v}">${v} — slot ${hashTable[v]}</option>`).join('')
+    : `<option value="">— no vehicles parked —</option>`;
+}
+
+function refreshQueueList(){
+  const el = document.getElementById('queueList');
+  if(waitQueue.length===0){ el.innerHTML = `<div class="empty-note">Queue is empty.</div>`; return; }
+  el.innerHTML = waitQueue.map((v,i)=>`<div class="row"><span>#${i+1} — ${v}</span><span class="tag">waiting</span></div>`).join('');
+}
+
+function refreshHistoryList(){
+  const el = document.getElementById('historyList');
+  if(historyStack.length===0){ el.innerHTML = `<div class="empty-note">No activity yet.</div>`; return; }
+  el.innerHTML = historyStack.slice(0,30).map(h=>{
+    const tagClass = h.action==='EXIT' ? 'out' : 'in';
+    return `<div class="row"><span>${h.time}  ${h.vehicle}${h.slot!=='-'?' → '+h.slot:''}</span><span class="tag ${tagClass}">${h.action}</span></div>`;
+  }).join('');
+}
+
+function refreshReportList(){
+  const el = document.getElementById('reportList');
+  const parked = slots.filter(s=>s.occupied).sort((a,b)=> a.id.localeCompare(b.id, undefined, {numeric:true}));
+  if(parked.length===0){ el.innerHTML = `<div class="empty-note">No vehicles currently parked.</div>`; return; }
+  el.innerHTML = parked.map(s=>`<div class="row"><span>Slot ${s.id}</span><span>${s.vehicle}</span></div>`).join('');
+}
+
+function refreshAllLists(){
+  refreshExitOptions();
+  refreshQueueList();
+  refreshHistoryList();
+  refreshReportList();
+}
+
+/* ================= TABS ================= */
+document.getElementById('tabs').addEventListener('click', (e)=>{
+  const t = e.target.closest('.tab');
+  if(!t) return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.querySelectorAll('.tabpane').forEach(p=>p.style.display='none');
+  document.getElementById('tab-'+t.dataset.tab).style.display='block';
+});
+
+/* ================= INIT ================= */
+renderZones();
+updateCounters();
+refreshAllLists();
+log('System ready — 4 zones, 20 slots, graph-based nearest-slot allocation online.');
+</script>
+</body>
+</html>
